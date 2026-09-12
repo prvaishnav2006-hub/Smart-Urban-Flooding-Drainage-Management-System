@@ -1,4 +1,3 @@
-# Smart-Urban-Flooding-Drainage-Management-System
 # Smart Urban Flooding & Drainage Management System
 
 An AI-powered smart city solution designed to help urban authorities monitor,
