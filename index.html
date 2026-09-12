@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Smart Urban Flood Management – Ahmedabad & Surat</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0a0e1a;--surface:#111827;--card:#1f2937;--border:#374151;
+  --primary:#3b82f6;--success:#10b981;--warn:#f59e0b;--danger:#ef4444;
+  --critical:#dc2626;--text:#f3f4f6;--muted:#9ca3af;--sidebar-w:240px;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.6;display:flex;min-height:100vh;}
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:var(--surface);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+/* ── SIDEBAR ── */
+#sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:width .3s;}
+#sidebar.collapsed{width:56px;}
+.sidebar-logo{padding:16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;}
+.sidebar-logo .logo-icon{font-size:22px;flex-shrink:0;}
+.sidebar-logo .logo-text{font-size:13px;font-weight:700;color:var(--primary);line-height:1.2;}
+.sidebar-logo .logo-sub{font-size:10px;color:var(--muted);}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 16px;cursor:pointer;border-left:3px solid transparent;transition:all .2s;white-space:nowrap;overflow:hidden;}
+.nav-item:hover{background:rgba(59,130,246,.1);color:var(--primary);}
+.nav-item.active{background:rgba(59,130,246,.15);border-left-color:var(--primary);color:var(--primary);}
+.nav-item .nav-icon{font-size:16px;flex-shrink:0;}
+.nav-label{font-size:13px;}
+#sidebar.collapsed .nav-label,.sidebar.collapsed .logo-text,.sidebar.collapsed .logo-sub{display:none;}
+.sidebar-footer{margin-top:auto;padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;}
+/* ── MAIN ── */
+#main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;transition:margin-left .3s;min-width:0;}
+/* ── TOPBAR ── */
+#topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:90;}
+.topbar-title{font-size:15px;font-weight:700;color:var(--text);}
+.topbar-subtitle{font-size:11px;color:var(--muted);}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.city-badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid var(--border);cursor:pointer;transition:all .2s;}
+.city-badge.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+.demo-badge{background:rgba(245,158,11,.15);border:1px solid var(--warn);color:var(--warn);padding:3px 8px;border-radius:4px;font-size:10px;font-weight:600;}
+.alert-bell{position:relative;cursor:pointer;font-size:18px;}
+.alert-count{position:absolute;top:-4px;right:-4px;background:var(--critical);color:#fff;font-size:9px;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;}
+/* ── CONTENT ── */
+#content{padding:20px;flex:1;overflow-y:auto;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+/* ── CARDS ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.card-title{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}
+/* ── KPI CARD ── */
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;overflow:hidden;}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.kpi-card.blue::before{background:var(--primary);}
+.kpi-card.green::before{background:var(--success);}
+.kpi-card.warn::before{background:var(--warn);}
+.kpi-card.red::before{background:var(--danger);}
+.kpi-card.purple::before{background:#8b5cf6;}
+.kpi-card.teal::before{background:#06b6d4;}
+.kpi-val{font-size:28px;font-weight:700;margin:4px 0;}
+.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge-critical{background:rgba(220,38,38,.2);color:#f87171;border:1px solid rgba(220,38,38,.4);}
+.badge-high{background:rgba(239,68,68,.15);color:var(--danger);border:1px solid rgba(239,68,68,.3);}
+.badge-medium{background:rgba(245,158,11,.15);color:var(--warn);border:1px solid rgba(245,158,11,.3);}
+.badge-low{background:rgba(16,185,129,.15);color:var(--success);border:1px solid rgba(16,185,129,.3);}
+.badge-active{background:rgba(239,68,68,.15);color:var(--danger);}
+.badge-progress{background:rgba(245,158,11,.15);color:var(--warn);}
+.badge-resolved{background:rgba(16,185,129,.15);color:var(--success);}
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.tbl th{background:rgba(255,255,255,.03);padding:10px 12px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);}
+.tbl td{padding:10px 12px;border-bottom:1px solid rgba(55,65,81,.5);}
+.tbl tr:hover td{background:rgba(255,255,255,.02);}
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);}
+/* ── RISK CITY INDICATOR ── */
+.city-risk-bar{display:flex;align-items:center;gap:12px;padding:14px;border-radius:8px;border:1px solid var(--border);}
+.city-risk-icon{font-size:28px;}
+.city-risk-name{font-size:13px;font-weight:600;}
+.city-risk-level{font-size:11px;color:var(--muted);}
+.risk-pill{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;}
+.risk-critical{background:rgba(220,38,38,.2);color:#f87171;border:1px solid var(--critical);}
+.risk-high{background:rgba(239,68,68,.15);color:var(--danger);border:1px solid rgba(239,68,68,.5);}
+.risk-medium{background:rgba(245,158,11,.15);color:var(--warn);border:1px solid rgba(245,158,11,.5);}
+.risk-low{background:rgba(16,185,129,.15);color:var(--success);border:1px solid rgba(16,185,129,.5);}
+/* ── ALERTS PANEL ── */
+.alert-item{display:flex;gap:10px;padding:10px;border-radius:6px;margin-bottom:6px;border-left:3px solid;}
+.alert-item.critical{background:rgba(220,38,38,.08);border-color:var(--critical);}
+.alert-item.high{background:rgba(239,68,68,.06);border-color:var(--danger);}
+.alert-item.medium{background:rgba(245,158,11,.06);border-color:var(--warn);}
+.alert-msg{font-size:12px;flex:1;}
+.alert-time{font-size:10px;color:var(--muted);white-space:nowrap;}
+/* ── MAP ── */
+#map-container{height:500px;border-radius:10px;overflow:hidden;border:1px solid var(--border);}
+/* ── ZONE CARDS ── */
+.zone-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+.zone-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:border-color .2s,transform .1s;}
+.zone-card:hover{border-color:var(--primary);transform:translateY(-2px);}
+.zone-card.critical-card{border-color:rgba(220,38,38,.5);}
+.zone-card.high-card{border-color:rgba(239,68,68,.4);}
+.zone-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+.zone-name{font-size:14px;font-weight:600;}
+.zone-city{font-size:11px;color:var(--muted);}
+.zone-metrics{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;}
+.zone-metric{background:rgba(255,255,255,.03);padding:6px 8px;border-radius:6px;}
+.metric-val{font-size:15px;font-weight:700;}
+.metric-label{font-size:10px;color:var(--muted);}
+.risk-score-bar{height:6px;background:var(--border);border-radius:3px;margin-top:8px;overflow:hidden;}
+.risk-score-fill{height:100%;border-radius:3px;transition:width .5s;}
+/* ── FORM ── */
+.form-group{margin-bottom:14px;}
+.form-label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;}
+.form-input,.form-select,.form-textarea{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:9px 12px;font-size:13px;transition:border-color .2s;}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:var(--primary);}
+.form-textarea{resize:vertical;min-height:80px;}
+.form-select option{background:var(--card);}
+.radio-group{display:flex;gap:12px;}
+.radio-label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;}
+/* ── BUTTONS ── */
+.btn{padding:9px 18px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:var(--primary);color:#fff;}
+.btn-primary:hover{background:#2563eb;}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-danger:hover{background:#dc2626;}
+.btn-warn{background:var(--warn);color:#000;}
+.btn-warn:hover{background:#d97706;}
+.btn-success{background:var(--success);color:#fff;}
+.btn-success:hover{background:#059669;}
+.btn-ghost{background:transparent;color:var(--text);border:1px solid var(--border);}
+.btn-ghost:hover{background:rgba(255,255,255,.05);}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+/* ── CHAT ── */
+#chat-messages{height:360px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;}
+.chat-msg{max-width:85%;padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.6;}
+.chat-user{align-self:flex-end;background:var(--primary);color:#fff;border-radius:10px 10px 2px 10px;}
+.chat-ai{align-self:flex-start;background:var(--card);border:1px solid var(--border);border-radius:10px 10px 10px 2px;}
+.chat-ai-header{font-size:10px;color:var(--primary);font-weight:700;margin-bottom:4px;}
+.chat-input-row{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);}
+.chat-input{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:9px 12px;font-size:13px;}
+.chat-input:focus{outline:none;border-color:var(--primary);}
+.quick-q{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-top:1px solid var(--border);}
+.quick-q-btn{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:var(--primary);padding:5px 10px;border-radius:20px;font-size:11px;cursor:pointer;transition:all .2s;}
+.quick-q-btn:hover{background:rgba(59,130,246,.2);}
+/* ── WORKFLOW ── */
+.workflow-step{display:flex;align-items:flex-start;gap:12px;padding:12px;border-radius:8px;border:1px solid var(--border);margin-bottom:8px;transition:all .4s;}
+.workflow-step.active-step{border-color:var(--primary);background:rgba(59,130,246,.06);}
+.workflow-step.complete-step{border-color:var(--success);background:rgba(16,185,129,.05);}
+.workflow-step.pending-step{opacity:.5;}
+.step-icon{font-size:24px;flex-shrink:0;width:36px;text-align:center;}
+.step-num{width:24px;height:24px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+.step-num.done{background:var(--success);}
+.step-num.running{background:var(--primary);animation:pulse 1s infinite;}
+.step-detail{font-size:12px;color:var(--muted);margin-top:2px;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+.pulse{animation:pulse 1.2s infinite;}
+/* ── DAMAGE ── */
+.damage-cat{display:flex;align-items:center;gap:10px;padding:10px;background:rgba(255,255,255,.02);border-radius:6px;margin-bottom:6px;}
+.damage-icon{font-size:20px;}
+.damage-bar-bg{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
+.damage-bar-fill{height:100%;border-radius:4px;}
+/* ── PROGRESS BAR ── */
+.progress-wrap{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:4px;}
+.progress-fill{height:100%;border-radius:4px;transition:width .5s;}
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.modal-close{cursor:pointer;font-size:20px;color:var(--muted);}
+/* ── FILTER ROW ── */
+.filter-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.filter-select{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:12px;}
+/* ── AI ANALYSIS BOX ── */
+.ai-box{background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.25);border-radius:8px;padding:14px;margin-top:10px;}
+.ai-box-header{font-size:11px;font-weight:700;color:var(--primary);margin-bottom:8px;}
+.ai-factor{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:4px;}
+.ai-action{font-size:12px;padding:3px 0;color:var(--text);}
+.ai-footer{font-size:10px;color:var(--muted);margin-top:10px;padding-top:8px;border-top:1px solid var(--border);}
+/* ── NOTIFICATION TOAST ── */
+#toast{position:fixed;bottom:20px;right:20px;background:var(--success);color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;z-index:999;display:none;animation:slideIn .3s ease;}
+@keyframes slideIn{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+/* ── SCENARIO LOG ── */
+#scenario-log{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;height:200px;overflow-y:auto;line-height:1.8;}
+.log-line{color:var(--muted);}
+.log-line.success{color:var(--success);}
+.log-line.info{color:var(--primary);}
+.log-line.warn{color:var(--warn);}
+/* ── SECTION TITLE ── */
+.section-title{font-size:17px;font-weight:700;margin-bottom:4px;}
+.section-sub{font-size:12px;color:var(--muted);margin-bottom:16px;}
+/* ── CHART CONTAINER ── */
+.chart-wrap{position:relative;height:220px;}
+/* ── BLOCKAGE BAR ── */
+.block-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px;}
+.block-label{width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;}
+.block-bar-bg{flex:1;height:12px;background:var(--border);border-radius:6px;overflow:hidden;}
+.block-bar-fill{height:100%;border-radius:6px;}
+.block-pct{width:36px;text-align:right;font-weight:600;}
+/* ── AGENT CARDS ── */
+.agent-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.agent-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.agent-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.agent-name{font-size:13px;font-weight:700;}
+.agent-status-badge{margin-left:auto;font-size:10px;padding:2px 8px;border-radius:20px;}
+.agent-status-active{background:rgba(16,185,129,.2);color:var(--success);}
+.agent-status-standby{background:rgba(156,163,175,.2);color:var(--muted);}
+.agent-role{font-size:12px;color:var(--muted);margin-bottom:8px;}
+.agent-io{font-size:11px;}
+.agent-io span{color:var(--muted);}
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .grid-6{grid-template-columns:repeat(3,1fr);}
+  .grid-4{grid-template-columns:repeat(2,1fr);}
+  #sidebar{width:56px;}
+  #sidebar .nav-label,.sidebar-logo .logo-text,.sidebar-logo .logo-sub{display:none;}
+  #main{margin-left:56px;}
+}
+@media(max-width:600px){
+  .grid-3,.grid-4,.grid-6{grid-template-columns:1fr 1fr;}
+  .grid-2{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════ SIDEBAR -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-icon">🌊</span>
+    <div><div class="logo-text">FloodGuard AI</div><div class="logo-sub">Ahmedabad &amp; Surat</div></div>
+  </div>
+  <div class="nav-item active" onclick="showTab('dashboard')"><span class="nav-icon">📊</span><span class="nav-label">Dashboard</span></div>
+  <div class="nav-item" onclick="showTab('map')"><span class="nav-icon">🗺</span><span class="nav-label">Flood Risk Map</span></div>
+  <div class="nav-item" onclick="showTab('incidents')"><span class="nav-icon">🚨</span><span class="nav-label">Incidents</span></div>
+  <div class="nav-item" onclick="showTab('drainage')"><span class="nav-icon">🔧</span><span class="nav-label">Drainage Mgmt</span></div>
+  <div class="nav-item" onclick="showTab('report')"><span class="nav-icon">📱</span><span class="nav-label">Citizen Report</span></div>
+  <div class="nav-item" onclick="showTab('ai')"><span class="nav-icon">🤖</span><span class="nav-label">AI Assistant</span></div>
+  <div class="nav-item" onclick="showTab('damage')"><span class="nav-icon">📋</span><span class="nav-label">Damage Assessment</span></div>
+  <div class="nav-item" onclick="showTab('workflow')"><span class="nav-icon">⚙</span><span class="nav-label">Agent Workflow</span></div>
+  <div class="sidebar-footer">DEMO DATA only – Not official predictions</div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════ MAIN WRAPPER -->
+<div id="main">
+<!-- ── TOPBAR ── -->
+<header id="topbar">
+  <button class="btn btn-ghost" style="padding:6px 10px;font-size:16px;" onclick="toggleSidebar()">☰</button>
+  <div>
+    <div class="topbar-title">Smart Urban Flood Management System</div>
+    <div class="topbar-subtitle">Command &amp; Control Center – Gujarat, India</div>
+  </div>
+  <div class="topbar-right">
+    <span class="demo-badge">⚠ DEMO DATA</span>
+    <span class="city-badge active" id="cityBtn-all" onclick="filterCity('all')">All Cities</span>
+    <span class="city-badge" id="cityBtn-ahmedabad" onclick="filterCity('ahmedabad')">Ahmedabad</span>
+    <span class="city-badge" id="cityBtn-surat" onclick="filterCity('surat')">Surat</span>
+    <div class="alert-bell" onclick="showTab('incidents')">🔔<span class="alert-count" id="alertCount">13</span></div>
+    <div style="font-size:12px;color:var(--muted);">Municipal Officer</div>
+  </div>
+</header>
+
+<!-- ── CONTENT ── -->
+<div id="content">
+
+<!-- ═══════════════════════════════════════════════════════ TAB: DASHBOARD -->
+<div id="tab-dashboard" class="tab-panel active">
+  <div class="section-title">Command Center Dashboard</div>
+  <div class="section-sub">Real-time overview – Ahmedabad &amp; Surat | <span style="color:var(--warn);">DEMO DATA – Not official predictions</span></div>
+
+  <!-- KPI Cards -->
+  <div class="grid-6" style="margin-bottom:16px;">
+    <div class="kpi-card red"><div class="kpi-label">Active Incidents</div><div class="kpi-val" id="kpi-incidents">13</div><div class="kpi-sub">↑ 3 critical</div></div>
+    <div class="kpi-card warn"><div class="kpi-label">High-Risk Zones</div><div class="kpi-val" id="kpi-zones">7</div><div class="kpi-sub">4 critical, 3 high</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">Avg Rainfall</div><div class="kpi-val" id="kpi-rainfall">35.1</div><div class="kpi-sub">mm/hr current</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Critical Drains</div><div class="kpi-val" id="kpi-drains">6</div><div class="kpi-sub">≥75% blocked</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Response Teams</div><div class="kpi-val">8</div><div class="kpi-sub">Active</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Citizen Reports</div><div class="kpi-val" id="kpi-reports">171</div><div class="kpi-sub">Last 2 hrs</div></div>
+  </div>
+
+  <!-- City risk + Charts row -->
+  <div class="grid-2" style="margin-bottom:16px;">
+    <div class="card">
+      <div class="card-title">City Flood Risk Status</div>
+      <div class="city-risk-bar" style="margin-bottom:10px;">
+        <span class="city-risk-icon">🏙</span>
+        <div><div class="city-risk-name">Ahmedabad</div><div class="city-risk-level">Gujarat's commercial capital</div></div>
+        <span class="risk-pill risk-high" style="margin-left:auto;">HIGH</span>
+      </div>
+      <div class="city-risk-bar">
+        <span class="city-risk-icon">🌊</span>
+        <div><div class="city-risk-name">Surat</div><div class="city-risk-level">Coastal industrial city</div></div>
+        <span class="risk-pill risk-critical pulse" style="margin-left:auto;">CRITICAL</span>
+      </div>
+      <div style="margin-top:14px;" class="card-title">Risk Distribution (All Zones)</div>
+      <div class="chart-wrap"><canvas id="riskDonut"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">24-Hour Rainfall Trend (mm/hr)</div>
+      <div class="chart-wrap"><canvas id="rainfallChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Incident status + Drain blockage row -->
+  <div class="grid-2" style="margin-bottom:16px;">
+    <div class="card">
+      <div class="card-title">Incident Status Distribution</div>
+      <div class="chart-wrap"><canvas id="incidentBar"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Top Drain Blockage Levels (%)</div>
+      <div id="blockage-bars"></div>
+    </div>
+  </div>
+
+  <!-- Alerts panel -->
+  <div class="card">
+    <div class="card-title">Recent Alerts</div>
+    <div id="alerts-panel"></div>
+  </div>
+</div><!-- /tab-dashboard -->
+
+<!-- ═══════════════════════════════════════════════════════ TAB: MAP -->
+<div id="tab-map" class="tab-panel">
+  <div class="section-title">Flood Risk Map</div>
+  <div class="section-sub">Color-coded zone risk across Ahmedabad &amp; Surat | Click markers for details</div>
+  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+    <span class="badge badge-low">● Low</span>
+    <span class="badge badge-medium">● Medium</span>
+    <span class="badge badge-high">● High</span>
+    <span class="badge badge-critical">● Critical</span>
+    <button class="btn btn-ghost" style="margin-left:auto;font-size:12px;" onclick="mapFlyTo(23.02,72.57,12)">Ahmedabad</button>
+    <button class="btn btn-ghost" style="font-size:12px;" onclick="mapFlyTo(21.19,72.83,12)">Surat</button>
+    <button class="btn btn-ghost" style="font-size:12px;" onclick="mapFlyTo(22.1,72.7,9)">Both Cities</button>
+  </div>
+  <div id="map-container"></div>
+  <div class="zone-grid" style="margin-top:16px;" id="zone-cards"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TAB: INCIDENTS -->
+<div id="tab-incidents" class="tab-panel">
+  <div class="section-title">Incident Management</div>
+  <div class="section-sub">Real-time incident tracking and response coordination</div>
+  <div class="filter-row">
+    <select class="filter-select" id="inc-city-filter" onchange="renderIncidents()"><option value="">All Cities</option><option value="Ahmedabad">Ahmedabad</option><option value="Surat">Surat</option></select>
+    <select class="filter-select" id="inc-sev-filter" onchange="renderIncidents()"><option value="">All Severities</option><option value="Critical">Critical</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option></select>
+    <select class="filter-select" id="inc-status-filter" onchange="renderIncidents()"><option value="">All Statuses</option><option value="Active">Active</option><option value="In Progress">In Progress</option><option value="Resolved">Resolved</option></select>
+    <span style="margin-left:auto;font-size:12px;color:var(--muted);" id="inc-count-label">15 incidents</span>
+  </div>
+  <div class="tbl-wrap"><table class="tbl" id="incidents-table">
+    <thead><tr><th>ID</th><th>Location</th><th>Type</th><th>Severity</th><th>Status</th><th>Team</th><th>Reported</th><th>Action</th></tr></thead>
+    <tbody id="incidents-body"></tbody>
+  </table></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TAB: DRAINAGE -->
+<div id="tab-drainage" class="tab-panel">
+  <div class="section-title">Drainage Infrastructure Management</div>
+  <div class="section-sub">Drain condition monitoring and maintenance scheduling</div>
+  <div class="filter-row">
+    <select class="filter-select" id="drain-city-filter" onchange="renderDrains()"><option value="">All Cities</option><option value="Ahmedabad">Ahmedabad</option><option value="Surat">Surat</option></select>
+    <select class="filter-select" id="drain-cond-filter" onchange="renderDrains()"><option value="">All Conditions</option><option value="Critical">Critical</option><option value="Poor">Poor</option><option value="Fair">Fair</option><option value="Good">Good</option></select>
+  </div>
+  <div class="tbl-wrap"><table class="tbl" id="drains-table">
+    <thead><tr><th>ID</th><th>Location</th><th>City</th><th>Condition</th><th>Blockage %</th><th>Last Maint.</th><th>Priority</th><th>Next Recommended</th></tr></thead>
+    <tbody id="drains-body"></tbody>
+  </table></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TAB: REPORT -->
+<div id="tab-report" class="tab-panel">
+  <div class="section-title">Citizen Flood Report</div>
+  <div class="section-sub">Submit a flood report. Critical reports are auto-forwarded to the Civic Response Agent.</div>
+  <div class="grid-2">
+    <div class="card">
+      <form id="citizen-form" onsubmit="submitCitizenReport(event)">
+        <div class="form-group">
+          <label class="form-label">City *</label>
+          <select class="form-select" id="f-city" required>
+            <option value="">Select city...</option>
+            <option value="Ahmedabad">Ahmedabad</option>
+            <option value="Surat">Surat</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Zone / Area *</label>
+          <select class="form-select" id="f-zone" required><option value="">Select zone...</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Flood Severity *</label>
+          <select class="form-select" id="f-severity" required>
+            <option value="">Select severity...</option>
+            <option value="minor">Minor – Small puddles</option>
+            <option value="moderate">Moderate – Ankle-deep water</option>
+            <option value="severe">Severe – Knee-deep flooding</option>
+            <option value="critical">Critical – Waist-deep / life risk</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estimated Water Level (cm)</label>
+          <input type="number" class="form-input" id="f-water" placeholder="e.g. 45" min="0" max="300"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Drain Blocked?</label>
+          <div class="radio-group">
+            <label class="radio-label"><input type="radio" name="drain-blocked" value="yes"/> Yes</label>
+            <label class="radio-label"><input type="radio" name="drain-blocked" value="no" checked/> No</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-textarea" id="f-desc" placeholder="Describe the flooding situation..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Photo Upload (UI demo only)</label>
+          <input type="file" class="form-input" accept="image/*" style="padding:6px;"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Timestamp</label>
+          <input type="text" class="form-input" id="f-timestamp" readonly/>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">📤 Submit Report</button>
+      </form>
+    </div>
+    <div>
+      <div class="card" id="report-result" style="display:none;">
+        <div class="card-title">Report Submitted ✅</div>
+        <div id="report-result-body"></div>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <div class="card-title">How It Works</div>
+        <div style="font-size:12px;color:var(--muted);line-height:2;">
+          <div>1️⃣ Your report is received by the <strong>Citizen Report Agent</strong></div>
+          <div>2️⃣ Agent validates severity using water level data</div>
+          <div>3️⃣ Duplicate check against existing incidents</div>
+          <div>4️⃣ If severity ≥ High → forwarded to <strong>Civic Response Agent</strong></div>
+          <div>5️⃣ Response team automatically assigned</div>
+          <div>6️⃣ <strong>Dashboard Agent</strong> updates KPIs in real-time</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TAB: AI ASSISTANT -->
+<div id="tab-ai" class="tab-panel">
+  <div class="section-title">AI Assistant – IBM Granite Powered</div>
+  <div class="section-sub">Ask questions about flood risk, drainage, and emergency response</div>
+  <div class="grid-2">
+    <div class="card" style="display:flex;flex-direction:column;height:520px;padding:0;">
+      <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+        <span style="font-size:18px;">🤖</span>
+        <div><div style="font-size:13px;font-weight:700;">IBM Granite LLM</div><div style="font-size:10px;color:var(--muted);">granite-3-8b-instruct via watsonx.ai</div></div>
+        <span class="demo-badge" style="margin-left:auto;">DEMO MODE</span>
+      </div>
+      <div id="chat-messages">
+        <div class="chat-msg chat-ai">
+          <div class="chat-ai-header">🤖 IBM Granite LLM [DEMO]</div>
+          Hello! I'm your AI assistant for the Smart Urban Flood Management System covering Ahmedabad and Surat. I can help you with flood risk analysis, drainage status, and emergency response recommendations. What would you like to know?
+        </div>
+      </div>
+      <div class="quick-q">
+        <button class="quick-q-btn" onclick="askQuestion('Which areas have the highest flood risk?')">Highest flood risk?</button>
+        <button class="quick-q-btn" onclick="askQuestion('Which drains need urgent maintenance?')">Drains needing maintenance?</button>
+        <button class="quick-q-btn" onclick="askQuestion('Summarize the flood situation in Surat')">Surat situation</button>
+        <button class="quick-q-btn" onclick="askQuestion('What should emergency teams do in high-risk zones?')">Emergency teams action</button>
+        <button class="quick-q-btn" onclick="askQuestion('Why is Rander Road classified as high risk?')">Why Rander Road high risk?</button>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" class="chat-input" placeholder="Ask about flood risk, drainage, or response..." onkeydown="if(event.key==='Enter')sendChat()"/>
+        <button class="btn btn-primary" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">AI Analysis Framework</div>
+      <div id="ai-analysis-box">
+        <div style="color:var(--muted);font-size:12px;">Send a message to see the AI's reasoning process here.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TAB: DAMAGE -->
+<div id="tab-damage" class="tab-panel">
+  <div class="section-title">Post-Disaster Damage Assessment</div>
+  <div class="section-sub">Run post-flood assessment to estimate damage and generate recovery priorities</div>
+  <div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;">
+    <button class="btn btn-danger" id="btn-assess" onclick="runDamageAssessment()">🔍 Run Post-Flood Assessment</button>
+    <button class="btn btn-ghost" id="btn-download-report" onclick="downloadReport()" disabled>⬇ Download Report</button>
+  </div>
+  <div id="damage-content">
+    <div class="card" style="text-align:center;padding:40px;">
+      <div style="font-size:48px;margin-bottom:12px;">📋</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px;">No Assessment Run Yet</div>
+      <div style="font-size:13px;color:var(--muted);">Click "Run Post-Flood Assessment" to trigger the Damage Assessment Agent</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TAB: WORKFLOW -->
+<div id="tab-workflow" class="tab-panel">
+  <div class="section-title">Agentic AI Workflow Visualization</div>
+  <div class="section-sub">Watch 6 AI agents collaborate in real-time – the power of Agentic AI over simple dashboards</div>
+
+  <div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;">
+    <button class="btn btn-danger pulse" id="btn-demo" onclick="runDemoScenario()">🌧 Run Demo Scenario (Surat Monsoon Surge)</button>
+    <button class="btn btn-success" id="btn-damage-trigger" onclick="showTab('damage');runDamageAssessment()" disabled>📋 Run Damage Assessment</button>
+  </div>
+
+  <!-- Scenario log -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">Scenario Event Log</div>
+    <div id="scenario-log"><span class="log-line">Waiting for scenario trigger...</span></div>
+  </div>
+
+  <!-- Workflow steps -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">Agent Workflow Steps</div>
+    <div id="workflow-steps">
+      <div class="workflow-step pending-step"><span class="step-icon">🌧</span><div><strong>Step 1: Rainfall Sensor → Flood Risk Agent</strong><div class="step-detail">Awaiting rainfall data input</div></div></div>
+      <div class="workflow-step pending-step"><span class="step-icon">⚠</span><div><strong>Step 2: Flood Risk Agent → Risk Assessments</strong><div class="step-detail">Zone-level analysis pending</div></div></div>
+      <div class="workflow-step pending-step"><span class="step-icon">🔧</span><div><strong>Step 3: Drainage Maintenance Agent</strong><div class="step-detail">Drain inspection pending</div></div></div>
+      <div class="workflow-step pending-step"><span class="step-icon">🚨</span><div><strong>Step 4: Civic Response Coordination Agent</strong><div class="step-detail">Team dispatch pending</div></div></div>
+      <div class="workflow-step pending-step"><span class="step-icon">📱</span><div><strong>Step 5: Citizen Report Agent</strong><div class="step-detail">Report processing pending</div></div></div>
+      <div class="workflow-step pending-step"><span class="step-icon">📊</span><div><strong>Step 6: Dashboard Agent</strong><div class="step-detail">Dashboard update pending</div></div></div>
+      <div class="workflow-step pending-step"><span class="step-icon">📋</span><div><strong>Step 7: Damage Assessment Agent</strong><div class="step-detail">Awaiting event stabilisation</div></div></div>
+    </div>
+  </div>
+
+  <!-- Agent cards -->
+  <div class="card-title" style="margin-bottom:10px;">The 6 AI Agents</div>
+  <div class="grid-2" id="agent-cards-grid"></div>
+
+  <!-- Why Agentic AI -->
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title">Why Agentic AI > Simple Dashboard</div>
+    <div class="grid-3" style="gap:12px;">
+      <div style="padding:12px;background:rgba(59,130,246,.05);border-radius:8px;border:1px solid rgba(59,130,246,.2);">
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--primary);">🔄 Autonomous Decision-Making</div>
+        <div style="font-size:12px;color:var(--muted);">Agents take actions automatically based on thresholds — no human needed to click every button. A simple dashboard would just show data.</div>
+      </div>
+      <div style="padding:12px;background:rgba(16,185,129,.05);border-radius:8px;border:1px solid rgba(16,185,129,.2);">
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:var(--success);">🤝 Agent Collaboration</div>
+        <div style="font-size:12px;color:var(--muted);">Risk Agent feeds Drainage Agent, which feeds Civic Response Agent. Multi-agent coordination produces compound intelligence impossible with isolated modules.</div>
+      </div>
+      <div style="padding:12px;background:rgba(139,92,246,.05);border-radius:8px;border:1px solid rgba(139,92,246,.2);">
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px;color:#8b5cf6;">💡 Explainable Reasoning</div>
+        <div style="font-size:12px;color:var(--muted);">Each agent explains its reasoning — contributing factors, confidence scores, action rationales. Not a black box — officers understand WHY the AI recommends what it does.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+</div><!-- /main -->
+
+<!-- ═══════════════════════════════════ MODAL -->
+<div class="modal-overlay" id="incident-modal">
+  <div class="modal">
+    <div class="modal-header"><span style="font-size:15px;font-weight:700;" id="modal-title">Incident Details</span><span class="modal-close" onclick="closeModal()">✕</span></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ TOAST -->
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// INLINE DATA (mirrors synthetic_data.py — DEMO DATA, Not official predictions)
+// ══════════════════════════════════════════════════════════════════════════════
+const ZONES = [
+  {zone_id:"AHM-01",city:"Ahmedabad",zone_name:"Satellite",lat:23.0225,lon:72.5714,rainfall_intensity:18.5,drainage_blockage_level:22,water_level:14,flood_risk_score:28,risk_level:"Low",population_density:"High",citizen_reports_count:2,maintenance_status:"Good"},
+  {zone_id:"AHM-02",city:"Ahmedabad",zone_name:"Naroda",lat:23.0896,lon:72.6511,rainfall_intensity:42,drainage_blockage_level:64,water_level:55,flood_risk_score:82,risk_level:"Critical",population_density:"Very High",citizen_reports_count:14,maintenance_status:"Critical"},
+  {zone_id:"AHM-03",city:"Ahmedabad",zone_name:"Vatva",lat:22.9722,lon:72.6478,rainfall_intensity:38,drainage_blockage_level:71,water_level:62,flood_risk_score:88,risk_level:"Critical",population_density:"High",citizen_reports_count:18,maintenance_status:"Critical"},
+  {zone_id:"AHM-04",city:"Ahmedabad",zone_name:"Gota",lat:23.1003,lon:72.5703,rainfall_intensity:25,drainage_blockage_level:38,water_level:22,flood_risk_score:44,risk_level:"Medium",population_density:"Medium",citizen_reports_count:5,maintenance_status:"Fair"},
+  {zone_id:"AHM-05",city:"Ahmedabad",zone_name:"Bopal",lat:23.0323,lon:72.4687,rainfall_intensity:20,drainage_blockage_level:18,water_level:10,flood_risk_score:22,risk_level:"Low",population_density:"Medium",citizen_reports_count:1,maintenance_status:"Good"},
+  {zone_id:"AHM-06",city:"Ahmedabad",zone_name:"Naranpura",lat:23.0537,lon:72.5576,rainfall_intensity:31,drainage_blockage_level:52,water_level:38,flood_risk_score:62,risk_level:"High",population_density:"High",citizen_reports_count:9,maintenance_status:"Poor"},
+  {zone_id:"AHM-07",city:"Ahmedabad",zone_name:"Maninagar",lat:22.9987,lon:72.6052,rainfall_intensity:35,drainage_blockage_level:68,water_level:50,flood_risk_score:79,risk_level:"High",population_density:"Very High",citizen_reports_count:16,maintenance_status:"Poor"},
+  {zone_id:"AHM-08",city:"Ahmedabad",zone_name:"Chandkheda",lat:23.1121,lon:72.5793,rainfall_intensity:28,drainage_blockage_level:44,water_level:28,flood_risk_score:51,risk_level:"Medium",population_density:"High",citizen_reports_count:7,maintenance_status:"Fair"},
+  {zone_id:"AHM-09",city:"Ahmedabad",zone_name:"Bapunagar",lat:23.0445,lon:72.6250,rainfall_intensity:40,drainage_blockage_level:66,water_level:58,flood_risk_score:85,risk_level:"Critical",population_density:"Very High",citizen_reports_count:20,maintenance_status:"Critical"},
+  {zone_id:"AHM-10",city:"Ahmedabad",zone_name:"Thaltej",lat:23.0555,lon:72.5065,rainfall_intensity:15,drainage_blockage_level:12,water_level:8,flood_risk_score:15,risk_level:"Low",population_density:"Low",citizen_reports_count:0,maintenance_status:"Good"},
+  {zone_id:"SRT-01",city:"Surat",zone_name:"Rander Road",lat:21.2340,lon:72.8372,rainfall_intensity:52,drainage_blockage_level:80,water_level:75,flood_risk_score:95,risk_level:"Critical",population_density:"Very High",citizen_reports_count:25,maintenance_status:"Critical"},
+  {zone_id:"SRT-02",city:"Surat",zone_name:"Adajan",lat:21.2235,lon:72.7913,rainfall_intensity:44,drainage_blockage_level:72,water_level:65,flood_risk_score:91,risk_level:"Critical",population_density:"Very High",citizen_reports_count:21,maintenance_status:"Critical"},
+  {zone_id:"SRT-03",city:"Surat",zone_name:"Vesu",lat:21.1609,lon:72.7870,rainfall_intensity:28,drainage_blockage_level:35,water_level:25,flood_risk_score:40,risk_level:"Medium",population_density:"Medium",citizen_reports_count:4,maintenance_status:"Fair"},
+  {zone_id:"SRT-04",city:"Surat",zone_name:"Katargam",lat:21.2310,lon:72.8605,rainfall_intensity:48,drainage_blockage_level:78,water_level:70,flood_risk_score:93,risk_level:"Critical",population_density:"Very High",citizen_reports_count:22,maintenance_status:"Critical"},
+  {zone_id:"SRT-05",city:"Surat",zone_name:"Udhna",lat:21.1895,lon:72.8581,rainfall_intensity:36,drainage_blockage_level:60,water_level:48,flood_risk_score:70,risk_level:"High",population_density:"High",citizen_reports_count:13,maintenance_status:"Poor"},
+  {zone_id:"SRT-06",city:"Surat",zone_name:"Althan",lat:21.1680,lon:72.8100,rainfall_intensity:22,drainage_blockage_level:28,water_level:18,flood_risk_score:30,risk_level:"Low",population_density:"Medium",citizen_reports_count:3,maintenance_status:"Good"},
+  {zone_id:"SRT-07",city:"Surat",zone_name:"Piplod",lat:21.1490,lon:72.7940,rainfall_intensity:19,drainage_blockage_level:16,water_level:12,flood_risk_score:20,risk_level:"Low",population_density:"Low",citizen_reports_count:1,maintenance_status:"Good"},
+  {zone_id:"SRT-08",city:"Surat",zone_name:"Athwa",lat:21.1953,lon:72.8205,rainfall_intensity:33,drainage_blockage_level:54,water_level:40,flood_risk_score:65,risk_level:"High",population_density:"High",citizen_reports_count:10,maintenance_status:"Poor"},
+  {zone_id:"SRT-09",city:"Surat",zone_name:"Pal",lat:21.2100,lon:72.7820,rainfall_intensity:30,drainage_blockage_level:47,water_level:32,flood_risk_score:55,risk_level:"Medium",population_density:"High",citizen_reports_count:8,maintenance_status:"Fair"},
+  {zone_id:"SRT-10",city:"Surat",zone_name:"Sarthana",lat:21.2480,lon:72.8900,rainfall_intensity:39,drainage_blockage_level:65,water_level:55,flood_risk_score:78,risk_level:"High",population_density:"Very High",citizen_reports_count:17,maintenance_status:"Poor"},
+];
+
+const DRAINS = [
+  {drain_id:"DR-AHM-01",city:"Ahmedabad",location:"Naroda Industrial Estate",blockage_percentage:82,condition:"Critical",last_maintenance:"2025-01-20",maintenance_due:"2025-04-20",priority_level:"Urgent"},
+  {drain_id:"DR-AHM-02",city:"Ahmedabad",location:"Vatva GIDC Outlet",blockage_percentage:75,condition:"Critical",last_maintenance:"2025-01-15",maintenance_due:"2025-04-15",priority_level:"Urgent"},
+  {drain_id:"DR-AHM-03",city:"Ahmedabad",location:"Bapunagar Storm Drain",blockage_percentage:79,condition:"Critical",last_maintenance:"2024-12-05",maintenance_due:"2025-03-05",priority_level:"Urgent"},
+  {drain_id:"DR-AHM-04",city:"Ahmedabad",location:"Maninagar Canal",blockage_percentage:68,condition:"Poor",last_maintenance:"2025-02-20",maintenance_due:"2025-05-20",priority_level:"High"},
+  {drain_id:"DR-AHM-05",city:"Ahmedabad",location:"Naranpura Main Drain",blockage_percentage:55,condition:"Poor",last_maintenance:"2025-03-01",maintenance_due:"2025-06-01",priority_level:"High"},
+  {drain_id:"DR-AHM-06",city:"Ahmedabad",location:"Chandkheda Bypass Drain",blockage_percentage:44,condition:"Fair",last_maintenance:"2025-03-15",maintenance_due:"2025-06-15",priority_level:"Medium"},
+  {drain_id:"DR-AHM-07",city:"Ahmedabad",location:"Gota SG Road Culvert",blockage_percentage:38,condition:"Fair",last_maintenance:"2025-04-01",maintenance_due:"2025-07-01",priority_level:"Medium"},
+  {drain_id:"DR-AHM-08",city:"Ahmedabad",location:"Satellite Drainage Pipe",blockage_percentage:22,condition:"Good",last_maintenance:"2025-05-10",maintenance_due:"2025-08-10",priority_level:"Low"},
+  {drain_id:"DR-AHM-09",city:"Ahmedabad",location:"Bopal Peripheral Drain",blockage_percentage:18,condition:"Good",last_maintenance:"2025-05-20",maintenance_due:"2025-08-20",priority_level:"Low"},
+  {drain_id:"DR-AHM-10",city:"Ahmedabad",location:"Thaltej SoBo Drain",blockage_percentage:12,condition:"Good",last_maintenance:"2025-06-01",maintenance_due:"2025-09-01",priority_level:"Low"},
+  {drain_id:"DR-SRT-01",city:"Surat",location:"Rander Road Canal",blockage_percentage:88,condition:"Critical",last_maintenance:"2024-11-10",maintenance_due:"2025-02-10",priority_level:"Urgent"},
+  {drain_id:"DR-SRT-02",city:"Surat",location:"Katargam Storm Sewer",blockage_percentage:85,condition:"Critical",last_maintenance:"2024-12-01",maintenance_due:"2025-03-01",priority_level:"Urgent"},
+  {drain_id:"DR-SRT-03",city:"Surat",location:"Adajan Estuary Outlet",blockage_percentage:76,condition:"Critical",last_maintenance:"2025-01-02",maintenance_due:"2025-04-02",priority_level:"Urgent"},
+  {drain_id:"DR-SRT-04",city:"Surat",location:"Udhna Industrial Drain",blockage_percentage:63,condition:"Poor",last_maintenance:"2025-02-08",maintenance_due:"2025-05-08",priority_level:"High"},
+  {drain_id:"DR-SRT-05",city:"Surat",location:"Sarthana Creek Drain",blockage_percentage:70,condition:"Poor",last_maintenance:"2025-02-03",maintenance_due:"2025-05-03",priority_level:"High"},
+  {drain_id:"DR-SRT-06",city:"Surat",location:"Athwa Main Sewer",blockage_percentage:54,condition:"Fair",last_maintenance:"2025-03-05",maintenance_due:"2025-06-05",priority_level:"Medium"},
+  {drain_id:"DR-SRT-07",city:"Surat",location:"Pal Junction Culvert",blockage_percentage:47,condition:"Fair",last_maintenance:"2025-03-20",maintenance_due:"2025-06-20",priority_level:"Medium"},
+  {drain_id:"DR-SRT-08",city:"Surat",location:"Vesu Residential Drain",blockage_percentage:35,condition:"Fair",last_maintenance:"2025-04-12",maintenance_due:"2025-07-12",priority_level:"Low"},
+  {drain_id:"DR-SRT-09",city:"Surat",location:"Althan Peripheral Canal",blockage_percentage:28,condition:"Good",last_maintenance:"2025-05-15",maintenance_due:"2025-08-15",priority_level:"Low"},
+  {drain_id:"DR-SRT-10",city:"Surat",location:"Piplod Nature Park Drain",blockage_percentage:16,condition:"Good",last_maintenance:"2025-05-28",maintenance_due:"2025-08-28",priority_level:"Low"},
+];
+
+const INCIDENTS = [
+  {incident_id:"INC-001",city:"Surat",zone:"Rander Road",location:"Rander Road, Near Railway Bridge",severity:"Critical",type:"Flooding",status:"Active",assigned_team:"Rapid Response Team Alpha",reported_time:"2025-07-10T06:15:00",description:"Severe flooding due to drainage overflow. Road submerged 2-3 feet. Multiple vehicles stranded.",recommended_actions:["Deploy water pumps immediately","Close road to traffic","Issue emergency alert to residents within 500m"]},
+  {incident_id:"INC-002",city:"Surat",zone:"Katargam",location:"Katargam Textile Market",severity:"Critical",type:"Waterlogging",status:"In Progress",assigned_team:"Pump Unit Beta",reported_time:"2025-07-10T06:40:00",description:"Severe waterlogging in commercial area. Businesses inaccessible. Drain completely blocked.",recommended_actions:["Deploy Pump Unit Beta for water removal","Unclog primary storm drain DR-SRT-02"]},
+  {incident_id:"INC-003",city:"Surat",zone:"Adajan",location:"Adajan Patia Residential Colony",severity:"High",type:"Flooding",status:"In Progress",assigned_team:"Rescue Team Gamma",reported_time:"2025-07-10T07:10:00",description:"Ground floor apartments flooded. Residents requesting evacuation assistance.",recommended_actions:["Begin resident evacuation from ground floors","Set up temporary shelter at Community Hall"]},
+  {incident_id:"INC-004",city:"Ahmedabad",zone:"Vatva",location:"Vatva GIDC Phase II",severity:"Critical",type:"Flooding",status:"Active",assigned_team:"Industrial Emergency Team",reported_time:"2025-07-10T05:50:00",description:"Industrial estate flooding. Hazardous material storage at risk.",recommended_actions:["Secure hazardous material storage units","Deploy industrial pumping equipment","Alert GPCB and factory safety officers"]},
+  {incident_id:"INC-005",city:"Ahmedabad",zone:"Naroda",location:"Naroda Main Road, Near Overpass",severity:"Critical",type:"Road Closure",status:"Active",assigned_team:"Traffic Management Unit",reported_time:"2025-07-10T06:05:00",description:"Underpass flooded. Main arterial road blocked.",recommended_actions:["Close NH-147 underpass immediately","Deploy traffic police for diversion"]},
+  {incident_id:"INC-006",city:"Ahmedabad",zone:"Bapunagar",location:"Bapunagar Slum Settlement A-Block",severity:"Critical",type:"Flooding",status:"Active",assigned_team:"Relief & Evacuation Team",reported_time:"2025-07-10T06:30:00",description:"Dense slum settlement severely flooded. Over 2000 residents affected.",recommended_actions:["Initiate immediate evacuation","Set up relief camp at Bapunagar School","Deploy NDRF team for search and rescue"]},
+  {incident_id:"INC-007",city:"Surat",zone:"Udhna",location:"Udhna-Magdalla Road",severity:"High",type:"Blocked Drain",status:"In Progress",assigned_team:"Drain Cleaning Crew D2",reported_time:"2025-07-10T07:45:00",description:"Primary storm drain completely blocked.",recommended_actions:["Deploy jet-cleaning vehicle","Manual debris removal required"]},
+  {incident_id:"INC-008",city:"Ahmedabad",zone:"Maninagar",location:"Maninagar Bus Rapid Transit Corridor",severity:"High",type:"Waterlogging",status:"Active",assigned_team:"Pump Unit Delta",reported_time:"2025-07-10T07:00:00",description:"BRTS corridor waterlogged. Bus service disrupted.",recommended_actions:["Halt BRT service temporarily","Deploy mobile pump units"]},
+  {incident_id:"INC-009",city:"Surat",zone:"Sarthana",location:"Sarthana Nature Park Approach Road",severity:"High",type:"Flooding",status:"Active",assigned_team:"Response Team Epsilon",reported_time:"2025-07-10T08:00:00",description:"Nature park access road flooded.",recommended_actions:["Close nature park approach roads","Monitor creek water levels every 30 min"]},
+  {incident_id:"INC-010",city:"Ahmedabad",zone:"Naranpura",location:"Naranpura Co-operative Society",severity:"Medium",type:"Waterlogging",status:"In Progress",assigned_team:"Local Maintenance Team",reported_time:"2025-07-10T08:30:00",description:"Waterlogging in residential society parking area.",recommended_actions:["Clear drain blockage manually"]},
+  {incident_id:"INC-011",city:"Surat",zone:"Athwa",location:"Athwa Gate Market",severity:"Medium",type:"Waterlogging",status:"Active",assigned_team:"Area Response Team Z",reported_time:"2025-07-10T09:00:00",description:"Market area waterlogged due to inadequate stormwater drainage.",recommended_actions:["Deploy portable pump"]},
+  {incident_id:"INC-012",city:"Ahmedabad",zone:"Chandkheda",location:"Chandkheda Highway Underpass",severity:"Medium",type:"Road Closure",status:"In Progress",assigned_team:"Highway Patrol Unit",reported_time:"2025-07-10T09:15:00",description:"Underpass partially submerged.",recommended_actions:["Maintain traffic restriction","Monitor water level sensors hourly"]},
+  {incident_id:"INC-013",city:"Surat",zone:"Pal",location:"Pal-Hazira Road Junction",severity:"Medium",type:"Blocked Drain",status:"Active",assigned_team:"Maintenance Crew P1",reported_time:"2025-07-10T09:40:00",description:"Junction drain blocked. Minor waterlogging.",recommended_actions:["Clear junction drain immediately"]},
+  {incident_id:"INC-014",city:"Ahmedabad",zone:"Gota",location:"Gota Char Rasta",severity:"Low",type:"Waterlogging",status:"Resolved",assigned_team:"Local Crew G3",reported_time:"2025-07-10T05:00:00",description:"Temporary waterlogging cleared after pump deployment.",recommended_actions:["Continue hourly monitoring"]},
+  {incident_id:"INC-015",city:"Surat",zone:"Vesu",location:"Vesu VIP Road",severity:"Low",type:"Blocked Drain",status:"Resolved",assigned_team:"Drain Crew V2",reported_time:"2025-07-10T04:30:00",description:"Minor drain blockage cleared. Area back to normal.",recommended_actions:["Schedule preventive cleaning next month"]},
+];
+
+const RAINFALL_HOURS = ["00","01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20","21","22","23"].map(h=>h+":00");
+const RAINFALL_AHM = [8,7,9,12,15,18,22,28,35,38,40,42,44,41,38,35,32,30,28,32,36,40,42,45];
+const RAINFALL_SRT = [10,9,12,16,20,25,30,38,44,48,50,52,54,51,49,46,44,42,40,45,48,52,54,56];
+
+const GRANITE_RESPONSES = {
+  "highest flood risk":{answer:"Based on current sensor data, the highest flood risk zones are:\n1. Rander Road, Surat – Risk Score: 95/100 (CRITICAL)\n2. Katargam, Surat – Risk Score: 93/100 (CRITICAL)\n3. Adajan, Surat – Risk Score: 91/100 (CRITICAL)\n4. Bapunagar, Ahmedabad – Risk Score: 85/100 (CRITICAL)\n5. Vatva, Ahmedabad – Risk Score: 88/100 (CRITICAL)",reasoning:"These zones exhibit concurrent elevation in all three primary risk indicators: rainfall intensity above 45 mm/hr, drainage blockage exceeding 75%, and water levels surpassing 70 cm. Historical flood frequency scores ≥7/10 confirm chronic vulnerability.",actions:["Activate Level-4 emergency protocol for Rander Road and Katargam immediately","Pre-position rescue boats and high-capacity pumps","Issue mandatory evacuation advisory for low-lying sub-zones","Alert NDRF and State Disaster Response Force"],confidence:92},
+  "drains need urgent":{answer:"The following drains require urgent maintenance (blockage ≥75%):\n1. DR-SRT-01: Rander Road Canal – 88% blocked (CRITICAL)\n2. DR-SRT-02: Katargam Storm Sewer – 85% blocked (CRITICAL)\n3. DR-AHM-01: Naroda Industrial Estate – 82% blocked (CRITICAL)\n4. DR-AHM-03: Bapunagar Storm Drain – 79% blocked (CRITICAL)\n5. DR-SRT-03: Adajan Estuary Outlet – 76% blocked (CRITICAL)",reasoning:"Blockage levels above 75% effectively reduce drainage capacity to near-zero. During rainfall exceeding 40 mm/hr, these blocked drains cause drainage overflow within 15-20 minutes, directly leading to street flooding.",actions:["Deploy jet-cleaning vehicles to Rander Road Canal and Katargam Storm Sewer within 1 hour","Dispatch manual drain crew to Bapunagar Storm Drain","Install temporary pump bypass for Naroda Industrial Estate drain"],confidence:94},
+  "surat":{answer:"Surat Flood Situation Summary (DEMO DATA):\n\nOverall City Risk: CRITICAL\n• 4 zones at Critical risk (Rander Road, Katargam, Adajan, Sarthana)\n• 2 zones at High risk (Udhna, Athwa)\n• Peak rainfall: 52 mm/hr in Rander Road\n• 3 critical drains with 75%+ blockage\n• 5 active incidents including 2 Critical\n• 25+ citizen reports in last 2 hours\n• 3 response teams currently deployed",reasoning:"Surat's risk profile is driven by its low-lying topography and the Tapi River's proximity. The combination of high-density informal settlements, aging drainage infrastructure last cleaned in 2024, and concentrated monsoon rainfall creates a high-probability flood scenario.",actions:["Maintain Level-4 emergency response in Rander Road and Katargam","Begin resident evacuation from ground-floor units in Adajan","Emergency drain cleaning for Rander Road Canal and Katargam Storm Sewer","Coordinate with Surat Municipal Corporation and SDRF for reinforcement"],confidence:91},
+  "emergency teams":{answer:"Recommended actions for emergency teams in high-risk zones:\n\nIMMEDIATE (0-2 hours):\n• Deploy water pumps at all Critical zones\n• Establish incident command post at zone boundary\n• Conduct rapid building-by-building sweep for stranded persons\n\nSHORT-TERM (2-6 hours):\n• Maintain continuous dewatering operations\n• Coordinate relief material distribution\n• Set up temporary medical triage\n\nONGOING:\n• Report water level readings every 30 minutes to EOC\n• Escalate immediately if water rises above 1 metre",reasoning:"High-risk zones with rainfall >35 mm/hr and blockage >60% can see water levels rise at 5-8 cm per hour during peak monsoon. The 2-hour action window is critical before conditions become life-threatening.",actions:["Each team leader to check in with EOC every 30 minutes","Priority: elderly, disabled, children for evacuation","Do not enter structures with visible structural damage"],confidence:89},
+  "rander road":{answer:"Rander Road is classified as CRITICAL RISK (Score: 95/100) due to:\n\n⚠ Rainfall: 52 mm/hr (Critical threshold: ≥45 mm/hr)\n⚠ Drainage Blockage: 80% (Critical: ≥70%)\n⚠ Historical Flood Frequency: 8.5/10 (Chronic flood zone)\n⚠ Water Level: 75 cm (High: ≥40 cm)\n⚠ Citizen Reports: 25 reports in 2 hours\n⚠ Primary drain (DR-SRT-01) last cleaned: November 2024",reasoning:"Rander Road sits in a topographic depression between the Tapi River basin and the urban stormwater channel. Its drainage infrastructure was designed for 35 mm/hr capacity but carries double that during peak monsoon. The Rander Road Canal has not been cleaned since November 2024 and is 88% blocked.",actions:["Issue IMMEDIATE evacuation order for Rander Road residential pockets","Deploy jet-cleaning vehicle to Rander Road Canal without delay","Close Rander Road to vehicular traffic","Deploy 2× high-capacity pumps","Escalate to municipal commissioner and district collector"],confidence:96},
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GLOBAL STATE
+// ══════════════════════════════════════════════════════════════════════════════
+let map = null;
+let activeCity = 'all';
+let damageReportText = '';
+const dynamicIncidents = [...INCIDENTS];
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════════════════════════
+function showTab(name){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    if(n.getAttribute('onclick') && n.getAttribute('onclick').includes("'"+name+"'")) n.classList.add('active');
+  });
+  if(name==='map' && !map) initMap();
+  if(name==='workflow') renderAgentCards();
+}
+
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  document.getElementById('main').style.marginLeft = document.getElementById('sidebar').classList.contains('collapsed') ? '56px' : 'var(--sidebar-w)';
+}
+
+function filterCity(city){
+  activeCity = city;
+  document.querySelectorAll('.city-badge').forEach(b=>b.classList.remove('active'));
+  document.getElementById('cityBtn-'+city).classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RISK HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+function riskColor(r){return r==='Critical'?'#dc2626':r==='High'?'#ef4444':r==='Medium'?'#f59e0b':'#10b981';}
+function riskBadge(r){return `<span class="badge badge-${r.toLowerCase()}">${r}</span>`;}
+function condBadge(c){const m={Critical:'critical',Poor:'high',Fair:'medium',Good:'low'};return `<span class="badge badge-${m[c]||'low'}">${c}</span>`;}
+function statusBadge(s){const m={'Active':'active','In Progress':'progress','Resolved':'resolved'};return `<span class="badge badge-${m[s]||'active'}">${s}</span>`;}
+function blockColor(p){return p>=75?'#dc2626':p>=55?'#ef4444':p>=35?'#f59e0b':'#10b981';}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CHARTS
+// ══════════════════════════════════════════════════════════════════════════════
+function initCharts(){
+  // Risk Donut
+  const rc = document.getElementById('riskDonut').getContext('2d');
+  const counts = {Low:0,Medium:0,High:0,Critical:0};
+  ZONES.forEach(z=>counts[z.risk_level]++);
+  new Chart(rc,{type:'doughnut',data:{labels:['Low','Medium','High','Critical'],datasets:[{data:[counts.Low,counts.Medium,counts.High,counts.Critical],backgroundColor:['#10b981','#f59e0b','#ef4444','#dc2626'],borderWidth:2,borderColor:'#1f2937'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#9ca3af',boxWidth:12,padding:8,font:{size:11}}}}}});
+
+  // Rainfall Chart
+  const rc2 = document.getElementById('rainfallChart').getContext('2d');
+  new Chart(rc2,{type:'line',data:{labels:RAINFALL_HOURS,datasets:[{label:'Ahmedabad',data:RAINFALL_AHM,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.08)',tension:0.4,pointRadius:0,fill:true},{label:'Surat',data:RAINFALL_SRT,borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,0.08)',tension:0.4,pointRadius:0,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#9ca3af',boxWidth:12,font:{size:11}}}},scales:{x:{ticks:{color:'#6b7280',maxTicksLimit:8,font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#6b7280',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'},title:{display:true,text:'mm/hr',color:'#6b7280',font:{size:10}}}}}});
+
+  // Incident Bar
+  const ib = document.getElementById('incidentBar').getContext('2d');
+  const byType={};
+  INCIDENTS.forEach(i=>{byType[i.type]=(byType[i.type]||0)+1;});
+  new Chart(ib,{type:'bar',data:{labels:Object.keys(byType),datasets:[{label:'Incidents',data:Object.values(byType),backgroundColor:['#dc2626','#ef4444','#f59e0b','#3b82f6'],borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7280',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#6b7280',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}}}}});
+
+  // Blockage bars
+  const top10 = [...DRAINS].sort((a,b)=>b.blockage_percentage-a.blockage_percentage).slice(0,10);
+  const bb = document.getElementById('blockage-bars');
+  bb.innerHTML = top10.map(d=>`
+    <div class="block-row">
+      <div class="block-label" title="${d.location}">${d.location}</div>
+      <div class="block-bar-bg"><div class="block-bar-fill" style="width:${d.blockage_percentage}%;background:${blockColor(d.blockage_percentage)};"></div></div>
+      <div class="block-pct" style="color:${blockColor(d.blockage_percentage)};">${d.blockage_percentage}%</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ALERTS PANEL
+// ══════════════════════════════════════════════════════════════════════════════
+function renderAlerts(){
+  const alerts = [];
+  ZONES.filter(z=>z.risk_level==='Critical'||z.risk_level==='High').forEach(z=>{
+    alerts.push({sev:z.risk_level,msg:`${z.zone_name} (${z.city}) – ${z.risk_level} flood risk. Rainfall: ${z.rainfall_intensity} mm/hr | Blockage: ${z.drainage_blockage_level}%`,time:'Now'});
+  });
+  INCIDENTS.filter(i=>i.status!=='Resolved'&&(i.severity==='Critical'||i.severity==='High')).forEach(i=>{
+    alerts.push({sev:i.severity,msg:`${i.type} at ${i.location} – ${i.severity}. Team: ${i.assigned_team}`,time:i.reported_time.split('T')[1].slice(0,5)});
+  });
+  const panel = document.getElementById('alerts-panel');
+  panel.innerHTML = alerts.slice(0,8).map(a=>`
+    <div class="alert-item ${a.sev.toLowerCase()}">
+      <div class="alert-msg">${a.sev==='Critical'?'🚨':'⚠'} ${a.msg}</div>
+      <div class="alert-time">${a.time}</div>
+    </div>`).join('');
+  document.getElementById('alertCount').textContent = alerts.length;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MAP
+// ══════════════════════════════════════════════════════════════════════════════
+function initMap(){
+  map = L.map('map-container').setView([22.1, 72.7], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+
+  ZONES.forEach(z=>{
+    const color = riskColor(z.risk_level);
+    const marker = L.circleMarker([z.lat,z.lon],{radius:10+(z.flood_risk_score/20),fillColor:color,color:'#fff',weight:1.5,fillOpacity:0.85}).addTo(map);
+    marker.bindPopup(`
+      <div style="font-family:-apple-system,sans-serif;min-width:200px;">
+        <div style="font-weight:700;font-size:14px;margin-bottom:6px;">${z.zone_name}, ${z.city}</div>
+        <div style="color:${color};font-weight:700;margin-bottom:6px;">${z.risk_level} RISK – Score: ${z.flood_risk_score}/100</div>
+        <div style="font-size:12px;color:#666;line-height:1.8;">
+          🌧 Rainfall: ${z.rainfall_intensity} mm/hr<br>
+          💧 Water Level: ${z.water_level} cm<br>
+          🚧 Blockage: ${z.drainage_blockage_level}%<br>
+          👥 Population: ${z.population_density}<br>
+          📱 Reports: ${z.citizen_reports_count}
+        </div>
+      </div>`);
+  });
+
+  // Drain markers (smaller)
+  DRAINS.filter(d=>d.condition==='Critical').forEach(d=>{
+    L.circleMarker([
+      d.drain_id.startsWith('DR-SRT')? ZONES.find(z=>z.city==='Surat'&&d.location.toLowerCase().includes(z.zone_name.split(' ')[0].toLowerCase()))?.lat||21.2:
+      ZONES.find(z=>z.city==='Ahmedabad'&&d.location.toLowerCase().includes(z.zone_name.split(' ')[0].toLowerCase()))?.lat||23.0,
+      d.drain_id.startsWith('DR-SRT')? ZONES.find(z=>z.city==='Surat'&&d.location.toLowerCase().includes(z.zone_name.split(' ')[0].toLowerCase()))?.lon||72.84:
+      ZONES.find(z=>z.city==='Ahmedabad'&&d.location.toLowerCase().includes(z.zone_name.split(' ')[0].toLowerCase()))?.lon||72.61
+    ],{radius:5,fillColor:'#f59e0b',color:'#fff',weight:1,fillOpacity:0.9}).addTo(map)
+      .bindPopup(`<b>⚠ Critical Drain</b><br>${d.location}<br>Blockage: ${d.blockage_percentage}%`);
+  });
+
+  renderZoneCards(ZONES);
+}
+
+function mapFlyTo(lat,lon,zoom){
+  if(map) map.flyTo([lat,lon],zoom,{duration:1});
+  showTab('map');
+}
+
+function renderZoneCards(zones){
+  const grid = document.getElementById('zone-cards');
+  if(!grid) return;
+  grid.innerHTML = zones.map(z=>{
+    const scoreColor = riskColor(z.risk_level);
+    return `<div class="zone-card ${z.risk_level.toLowerCase()}-card" onclick="mapFlyTo(${z.lat},${z.lon},14)">
+      <div class="zone-header">
+        <div><div class="zone-name">${z.zone_name}</div><div class="zone-city">${z.city}</div></div>
+        ${riskBadge(z.risk_level)}
+      </div>
+      <div class="zone-metrics">
+        <div class="zone-metric"><div class="metric-val" style="color:${scoreColor};">${z.flood_risk_score}</div><div class="metric-label">Risk Score</div></div>
+        <div class="zone-metric"><div class="metric-val">${z.rainfall_intensity}</div><div class="metric-label">mm/hr Rain</div></div>
+        <div class="zone-metric"><div class="metric-val">${z.drainage_blockage_level}%</div><div class="metric-label">Blockage</div></div>
+        <div class="zone-metric"><div class="metric-val">${z.water_level} cm</div><div class="metric-label">Water Level</div></div>
+      </div>
+      <div class="risk-score-bar"><div class="risk-score-fill" style="width:${z.flood_risk_score}%;background:${scoreColor};"></div></div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;">👥 ${z.population_density} density | 📱 ${z.citizen_reports_count} reports</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INCIDENTS TABLE
+// ══════════════════════════════════════════════════════════════════════════════
+function renderIncidents(){
+  const city = document.getElementById('inc-city-filter').value;
+  const sev  = document.getElementById('inc-sev-filter').value;
+  const sta  = document.getElementById('inc-status-filter').value;
+  let data = [...dynamicIncidents];
+  if(city) data = data.filter(i=>i.city===city);
+  if(sev)  data = data.filter(i=>i.severity===sev);
+  if(sta)  data = data.filter(i=>i.status===sta);
+  // Sort: Critical first
+  const sOrder = {Critical:0,High:1,Medium:2,Low:3};
+  data.sort((a,b)=>sOrder[a.severity]-sOrder[b.severity]);
+
+  document.getElementById('inc-count-label').textContent = `${data.length} incidents`;
+  document.getElementById('incidents-body').innerHTML = data.map(i=>`
+    <tr>
+      <td style="font-family:monospace;font-size:12px;">${i.incident_id}</td>
+      <td><div style="font-size:12px;font-weight:600;">${i.zone}, ${i.city}</div><div style="font-size:11px;color:var(--muted);">${i.location}</div></td>
+      <td>${i.type}</td>
+      <td>${riskBadge(i.severity)}</td>
+      <td>${statusBadge(i.status)}</td>
+      <td style="font-size:11px;">${i.assigned_team}</td>
+      <td style="font-size:11px;">${i.reported_time.split('T')[1].slice(0,5)}</td>
+      <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="showIncidentModal('${i.incident_id}')">Details</button></td>
+    </tr>`).join('');
+}
+
+function showIncidentModal(id){
+  const inc = dynamicIncidents.find(i=>i.incident_id===id);
+  if(!inc) return;
+  document.getElementById('modal-title').textContent = `${inc.incident_id} – ${inc.type} at ${inc.zone}`;
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      ${riskBadge(inc.severity)} ${statusBadge(inc.status)}
+      <span class="badge badge-medium">${inc.type}</span>
+    </div>
+    <div style="font-size:13px;margin-bottom:10px;"><b>Location:</b> ${inc.location}, ${inc.city}</div>
+    <div style="font-size:13px;margin-bottom:10px;"><b>Team:</b> ${inc.assigned_team}</div>
+    <div style="font-size:13px;margin-bottom:10px;"><b>Reported:</b> ${inc.reported_time}</div>
+    <div style="font-size:13px;margin-bottom:12px;color:var(--muted);">${inc.description}</div>
+    <div class="ai-box">
+      <div class="ai-box-header">🤖 Flood Risk Agent – Recommended Actions</div>
+      ${inc.recommended_actions.map((a,i)=>`<div class="ai-action">${i+1}. ${a}</div>`).join('')}
+      <div class="ai-footer">Confidence: 88% | Generated by Civic Response Coordination Agent (DEMO)</div>
+    </div>`;
+  document.getElementById('incident-modal').classList.add('open');
+}
+
+function closeModal(){document.getElementById('incident-modal').classList.remove('open');}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DRAINS TABLE
+// ══════════════════════════════════════════════════════════════════════════════
+function renderDrains(){
+  const city = document.getElementById('drain-city-filter').value;
+  const cond = document.getElementById('drain-cond-filter').value;
+  let data = [...DRAINS];
+  if(city) data = data.filter(d=>d.city===city);
+  if(cond) data = data.filter(d=>d.condition===cond);
+  data.sort((a,b)=>b.blockage_percentage-a.blockage_percentage);
+
+  const nextMaintMap = {Urgent:'Within 24 hours',High:'Within 72 hours',Medium:'Within 2 weeks',Low:'Next scheduled'};
+  document.getElementById('drains-body').innerHTML = data.map(d=>`
+    <tr>
+      <td style="font-family:monospace;font-size:12px;">${d.drain_id}</td>
+      <td style="font-size:12px;">${d.location}</td>
+      <td><span class="badge badge-${d.city==='Surat'?'medium':'low'}">${d.city}</span></td>
+      <td>${condBadge(d.condition)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="progress-wrap" style="width:80px;"><div class="progress-fill" style="width:${d.blockage_percentage}%;background:${blockColor(d.blockage_percentage)};"></div></div>
+          <span style="font-size:12px;font-weight:700;color:${blockColor(d.blockage_percentage)};">${d.blockage_percentage}%</span>
+        </div>
+      </td>
+      <td style="font-size:11px;">${d.last_maintenance}</td>
+      <td>${condBadge(d.priority_level)}</td>
+      <td style="font-size:11px;">${nextMaintMap[d.priority_level]||'Scheduled'}</td>
+    </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CITIZEN FORM
+// ══════════════════════════════════════════════════════════════════════════════
+const ZONE_MAP = {
+  Ahmedabad:['Satellite','Naroda','Vatva','Gota','Bopal','Naranpura','Maninagar','Chandkheda','Bapunagar','Thaltej'],
+  Surat:['Rander Road','Adajan','Vesu','Katargam','Udhna','Althan','Piplod','Athwa','Pal','Sarthana']
+};
+
+document.getElementById('f-city').addEventListener('change',function(){
+  const zones = ZONE_MAP[this.value]||[];
+  document.getElementById('f-zone').innerHTML='<option value="">Select zone...</option>'+zones.map(z=>`<option value="${z}">${z}</option>`).join('');
+});
+
+// Auto-fill timestamp
+setInterval(()=>{
+  const el = document.getElementById('f-timestamp');
+  if(el) el.value = new Date().toLocaleString('en-IN');
+},1000);
+
+function submitCitizenReport(e){
+  e.preventDefault();
+  const city = document.getElementById('f-city').value;
+  const zone = document.getElementById('f-zone').value;
+  const sev  = document.getElementById('f-severity').value;
+  const water = parseFloat(document.getElementById('f-water').value)||0;
+  const blocked = document.querySelector('input[name="drain-blocked"]:checked').value==='yes';
+  const desc  = document.getElementById('f-desc').value;
+  const ts    = new Date().toISOString();
+
+  // Simulate agent analysis
+  let finalSev = sev;
+  let adjusted = false;
+  if(water>=70){finalSev='critical';adjusted=(sev!=='critical');}
+  else if(water>=40&&['minor','moderate'].includes(sev)){finalSev='severe';adjusted=true;}
+
+  const incId = `CR-${city.slice(0,3).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+  const newInc = {incident_id:incId,city,zone,location:`${zone}, ${city} (Citizen Report)`,severity:finalSev==='critical'?'Critical':finalSev==='severe'?'High':finalSev==='moderate'?'Medium':'Low',type:blocked?'Blocked Drain':'Waterlogging',status:'Active',assigned_team:'Pending Assignment',reported_time:ts.slice(0,19),description:desc||'Submitted via citizen portal',recommended_actions:['Verify on-site','Assign appropriate response team']};
+
+  dynamicIncidents.push(newInc);
+
+  const forwarded = ['severe','critical'].includes(finalSev);
+  document.getElementById('report-result').style.display='block';
+  document.getElementById('report-result-body').innerHTML=`
+    <div style="font-size:12px;line-height:2.2;">
+      <div>📍 <b>Report ID:</b> ${incId}</div>
+      <div>🏙 <b>Location:</b> ${zone}, ${city}</div>
+      <div>⚠ <b>Severity:</b> ${adjusted?`<span style="color:var(--warn);">${finalSev.toUpperCase()} (upgraded from ${sev})</span>`:finalSev.toUpperCase()}</div>
+      ${adjusted?`<div style="color:var(--warn);font-size:11px;">⬆ Water level of ${water}cm triggered severity upgrade</div>`:''}
+      <div>🔄 <b>Forwarded to Civic Agent:</b> ${forwarded?'<span style="color:var(--success);">YES – New incident created</span>':'<span style="color:var(--muted);">No (severity below threshold)</span>'}</div>
+      ${forwarded?`<div style="color:var(--success);font-size:11px;">✅ Incident ${incId} added to active incidents</div>`:''}
+    </div>
+    <div class="ai-box" style="margin-top:10px;">
+      <div class="ai-box-header">🤖 Citizen Report Agent Analysis</div>
+      <div class="ai-factor">✅ Report validated successfully</div>
+      <div class="ai-factor">${adjusted?'⚠ Severity upgraded based on water level':'✅ Reported severity confirmed'}</div>
+      <div class="ai-factor">✅ No duplicates detected</div>
+      ${forwarded?'<div class="ai-factor">✅ Forwarded to Civic Response Agent</div>':''}
+      <div class="ai-footer">Confidence: 85% | Citizen Flood Reporting Agent (DEMO)</div>
+    </div>`;
+
+  document.getElementById('citizen-form').reset();
+  showToast('✅ Report submitted! '+(forwarded?'Forwarded to Civic Response Agent.':'Logged for monitoring.'));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AI ASSISTANT
+// ══════════════════════════════════════════════════════════════════════════════
+function findGraniteResponse(q){
+  const ql = q.toLowerCase();
+  for(const [key,val] of Object.entries(GRANITE_RESPONSES)){
+    if(ql.includes(key)) return val;
+  }
+  return null;
+}
+
+function addChatMsg(role, html){
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + (role==='user'?'chat-user':'chat-ai');
+  div.innerHTML = html;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function askQuestion(q){
+  document.getElementById('chat-input').value = q;
+  sendChat();
+}
+
+function sendChat(){
+  const input = document.getElementById('chat-input');
+  const q = input.value.trim();
+  if(!q) return;
+  input.value = '';
+
+  addChatMsg('user', q);
+
+  // Typing indicator
+  const typing = document.createElement('div');
+  typing.className = 'chat-msg chat-ai';
+  typing.innerHTML = '<div class="chat-ai-header">🤖 IBM Granite LLM [DEMO]</div><span class="pulse">● ● ●</span>';
+  document.getElementById('chat-messages').appendChild(typing);
+
+  setTimeout(()=>{
+    typing.remove();
+    const resp = findGraniteResponse(q);
+    if(resp){
+      addChatMsg('ai', `
+        <div class="chat-ai-header">🤖 IBM Granite LLM [DEMO – Simulated Granite Response]</div>
+        <pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;">${resp.answer}</pre>`);
+
+      // Update analysis panel
+      document.getElementById('ai-analysis-box').innerHTML=`
+        <div class="ai-box">
+          <div class="ai-box-header">🤖 [Agent] Flood Risk + Response Analysis</div>
+          <div style="font-size:12px;margin-bottom:8px;"><b>Reasoning:</b></div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6;">${resp.reasoning}</div>
+          <div style="font-size:12px;margin-bottom:6px;"><b>Recommended Actions:</b></div>
+          ${resp.actions.map((a,i)=>`<div class="ai-action">${i+1}. ${a}</div>`).join('')}
+          <div class="ai-footer">Confidence: ${resp.confidence}% | IBM Granite LLM (granite-3-8b-instruct) – DEMO Simulated Response</div>
+        </div>`;
+    } else {
+      const critical = ZONES.filter(z=>z.risk_level==='Critical').map(z=>z.zone_name);
+      addChatMsg('ai', `
+        <div class="chat-ai-header">🤖 IBM Granite LLM [DEMO – Simulated Granite Response]</div>
+        <div style="font-size:12px;">Based on current system data for Ahmedabad and Surat:<br><br>
+        • ${critical.length} zones at Critical risk: ${critical.slice(0,3).join(', ')}<br>
+        • 13 active incidents across both cities<br>
+        • 6 critical drains requiring immediate attention<br><br>
+        Please use the quick-question buttons for detailed analysis, or ask about a specific zone or incident.</div>`);
+    }
+  }, 900);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DAMAGE ASSESSMENT
+// ══════════════════════════════════════════════════════════════════════════════
+function runDamageAssessment(){
+  const btn = document.getElementById('btn-assess');
+  if(btn){btn.disabled=true;btn.textContent='Running Assessment...';}
+
+  setTimeout(()=>{
+    const affected = ZONES.filter(z=>z.risk_level==='Critical'||z.risk_level==='High');
+    const dmg = affected.map(z=>{
+      const mul = z.risk_level==='Critical'?1.5:1.0;
+      const infra = Math.round((z.risk_level==='Critical'?50000000:20000000)*mul);
+      const prop  = Math.round((z.risk_level==='Critical'?30000000:10000000)*mul);
+      const econ  = Math.round((z.risk_level==='Critical'?20000000:7500000)*mul);
+      const total = infra+prop+econ;
+      return {...z,infra,prop,econ,total};
+    });
+
+    const totalAll = dmg.reduce((s,d)=>s+d.total,0);
+    const crore = (n)=>`₹${(n/10000000).toFixed(1)} Cr`;
+
+    // Report text for download
+    damageReportText = `POST-FLOOD DAMAGE ASSESSMENT REPORT\n[DEMO DATA – Not official predictions]\nGenerated: ${new Date().toLocaleString()}\n\n`;
+    damageReportText += `EXECUTIVE SUMMARY\nTotal Affected Zones: ${affected.length}\nEstimated Total Damage: ${crore(totalAll)}\n\n`;
+    dmg.forEach(d=>{
+      damageReportText += `${d.zone_name} (${d.city}) – ${d.risk_level}:\n  Infrastructure: ${crore(d.infra)}\n  Property: ${crore(d.prop)}\n  Economic Loss: ${crore(d.econ)}\n  Total: ${crore(d.total)}\n\n`;
+    });
+    damageReportText += `Powered by IBM Granite LLM (DEMO)\n`;
+
+    const catCounts={Flooding:0,'Blocked Drain':0,Waterlogging:0,'Road Closure':0};
+    INCIDENTS.forEach(i=>catCounts[i.type]=(catCounts[i.type]||0)+1);
+
+    document.getElementById('damage-content').innerHTML=`
+      <div class="grid-3" style="margin-bottom:16px;">
+        <div class="kpi-card red"><div class="kpi-label">Affected Zones</div><div class="kpi-val">${affected.length}</div><div class="kpi-sub">Critical + High risk</div></div>
+        <div class="kpi-card warn"><div class="kpi-label">Est. Total Damage</div><div class="kpi-val" style="font-size:20px;">${crore(totalAll)}</div><div class="kpi-sub">DEMO – Indicative only</div></div>
+        <div class="kpi-card blue"><div class="kpi-label">Recovery Estimate</div><div class="kpi-val">14-30</div><div class="kpi-sub">days for critical zones</div></div>
+      </div>
+      <div class="grid-2" style="margin-bottom:16px;">
+        <div class="card">
+          <div class="card-title">Zone-wise Damage Breakdown</div>
+          ${dmg.map(d=>`
+            <div class="damage-cat">
+              <div class="damage-icon">${d.risk_level==='Critical'?'🔴':'🟠'}</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;">${d.zone_name} <span style="font-size:11px;color:var(--muted);">(${d.city})</span></div>
+                <div style="font-size:11px;color:var(--muted);">Total: ${crore(d.total)} | Infra: ${crore(d.infra)}</div>
+                <div class="damage-bar-bg" style="margin-top:4px;"><div class="damage-bar-fill" style="width:${Math.min(d.total/totalAll*100*2,100)}%;background:${riskColor(d.risk_level)};"></div></div>
+              </div>
+              ${riskBadge(d.risk_level)}
+            </div>`).join('')}
+        </div>
+        <div class="card">
+          <div class="card-title">Damage Categories</div>
+          ${Object.entries(catCounts).map(([type,count])=>`
+            <div class="damage-cat">
+              <div class="damage-icon">${type==='Flooding'?'🌊':type==='Blocked Drain'?'🚧':type==='Waterlogging'?'💧':'🚗'}</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;">${type}</div>
+                <div class="damage-bar-bg" style="margin-top:4px;"><div class="damage-bar-fill" style="width:${count*15}%;background:var(--warn);"></div></div>
+              </div>
+              <div style="font-size:14px;font-weight:700;">${count}</div>
+            </div>`).join('')}
+          <div class="card-title" style="margin-top:14px;">Recovery Priorities</div>
+          ${affected.filter(z=>z.risk_level==='Critical').map((z,i)=>`
+            <div style="padding:8px;background:rgba(220,38,38,.06);border-radius:6px;margin-bottom:6px;border-left:3px solid var(--critical);">
+              <div style="font-size:12px;font-weight:700;">${i+1}. ${z.zone_name}, ${z.city}</div>
+              <div style="font-size:11px;color:var(--muted);">Emergency dewatering → Infrastructure repair → Resident resettlement</div>
+            </div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Full Report Preview</div>
+        <pre style="white-space:pre-wrap;font-family:monospace;font-size:11px;color:var(--muted);max-height:200px;overflow-y:auto;">${damageReportText}</pre>
+      </div>`;
+
+    if(btn){btn.disabled=false;btn.textContent='🔍 Re-run Assessment';}
+    const dl = document.getElementById('btn-download-report');
+    if(dl) dl.disabled=false;
+    showToast('✅ Damage Assessment complete!');
+  }, 1500);
+}
+
+function downloadReport(){
+  const blob = new Blob([damageReportText], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'flood_damage_assessment_demo.txt';
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DEMO SCENARIO
+// ══════════════════════════════════════════════════════════════════════════════
+const DEMO_STEPS = [
+  {icon:'🌧',label:'Rainfall Sensor Network → Flood Risk Agent',cls:'info',detail:'Heavy monsoon rainfall detected. Surat receiving 68 mm/hr – exceeding critical threshold (45 mm/hr) by 51%.'},
+  {icon:'⚠',label:'Flood Risk Agent: 3 Critical Zones Identified',cls:'warn',detail:'Zones: Rander Road (98/100), Katargam (96/100), Sarthana (92/100) – all classified CRITICAL. Early warnings issued.'},
+  {icon:'🔧',label:'Drainage Agent: 5 Blocked Drains Identified',cls:'warn',detail:'DR-SRT-01 (88%), DR-SRT-02 (85%), DR-SRT-03 (76%), DR-SRT-04 (63%), DR-SRT-05 (70%). Emergency maintenance scheduled.'},
+  {icon:'🚨',label:'Civic Response Agent: 2 Emergency Teams Deployed',cls:'success',detail:'Rapid Response Team Alpha → Rander Road. Pump Unit Beta → Katargam. Emergency protocol Level-4 activated.'},
+  {icon:'📱',label:'Citizen Report Agent: 4 Reports Received & Forwarded',cls:'info',detail:'4 citizen reports validated and forwarded as new incidents. Duplicates filtered. Teams notified automatically.'},
+  {icon:'📊',label:'Dashboard Agent: KPIs Updated, 9 Alerts Active',cls:'success',detail:'Dashboard refreshed. Situation report generated. All 5 agents have reported in. System at full alert status.'},
+  {icon:'📋',label:'Damage Assessment Agent: Ready',cls:'success',detail:'Post-event assessment unlocked. Click "Run Damage Assessment" to complete the agentic workflow cycle.'},
+];
+
+async function runDemoScenario(){
+  const btn = document.getElementById('btn-demo');
+  btn.disabled = true;
+  btn.textContent = '🌧 Running Scenario...';
+  showTab('workflow');
+
+  const log = document.getElementById('scenario-log');
+  log.innerHTML = '';
+  const steps = document.querySelectorAll('#workflow-steps .workflow-step');
+
+  function logLine(txt, cls='log-line'){
+    const d = document.createElement('div');
+    d.className = cls;
+    d.textContent = `[${new Date().toLocaleTimeString()}] ${txt}`;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  logLine('🌧 DEMO SCENARIO: Surat Monsoon Surge initiated...','log-line info');
+
+  for(let i=0;i<DEMO_STEPS.length;i++){
+    await new Promise(r=>setTimeout(r,900));
+    // Update workflow step
+    if(steps[i]){
+      steps[i].className = 'workflow-step active-step';
+      steps[i].querySelector('.step-detail').textContent = DEMO_STEPS[i].detail;
+    }
+    logLine(`${DEMO_STEPS[i].icon} ${DEMO_STEPS[i].label}`,`log-line ${DEMO_STEPS[i].cls}`);
+    await new Promise(r=>setTimeout(r,600));
+    if(steps[i]) steps[i].className = 'workflow-step complete-step';
+  }
+
+  logLine('✅ Scenario complete. All 6 agents executed. Damage Assessment unlocked.','log-line success');
+  document.getElementById('btn-damage-trigger').disabled = false;
+  btn.disabled = false;
+  btn.textContent = '🌧 Re-run Demo Scenario';
+  showToast('🎉 Demo scenario complete! Run Damage Assessment to finish the cycle.');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AGENT CARDS
+// ══════════════════════════════════════════════════════════════════════════════
+const AGENTS = [
+  {name:'Flood Risk Prediction Agent',color:'#ef4444',role:'Analyses zone sensor data to compute flood risk scores and early warnings',inputs:['Rainfall (mm/hr)','Water levels','Drain blockage %','Historical flood data'],outputs:['Risk scores (0-100)','Risk level (Low/Med/High/Critical)','Early warning messages','Contributing factors'],status:'active'},
+  {name:'Drainage Maintenance Agent',color:'#f59e0b',role:'Schedules drain cleaning, identifies critical blockages, recommends preventive actions',inputs:['Drain blockage sensors','Condition reports','Maintenance logs'],outputs:['Prioritised maintenance schedule','Critical drain list','Emergency cleaning orders'],status:'active'},
+  {name:'Civic Response Coordination Agent',color:'#3b82f6',role:'Prioritises incidents and dispatches the right response team to each event',inputs:['Incident severity','Incident type','Team availability','Risk assessments'],outputs:['Prioritised incident queue','Team dispatch orders','Emergency protocols'],status:'active'},
+  {name:'Citizen Flood Reporting Agent',color:'#8b5cf6',role:'Validates citizen reports, detects duplicates, and creates new incidents for high-severity reports',inputs:['Citizen form submissions','Water level photos','Mobile location data'],outputs:['Validated reports','New incidents','Duplicate flags','Severity upgrades'],status:'active'},
+  {name:'Urban Resilience Dashboard Agent',color:'#10b981',role:'Aggregates outputs from all agents into a unified city-level dashboard view',inputs:['Risk assessments','Incident statuses','Drain reports','Citizen report counts'],outputs:['KPI metrics','Active alerts','Situation reports','City summaries'],status:'active'},
+  {name:'Post-Disaster Damage Assessment Agent',color:'#6366f1',role:'Assesses post-flood infrastructure damage and generates prioritised recovery plans',inputs:['Zone water levels','Incident history','Infrastructure condition'],outputs:['Damage estimates (₹)','Recovery timeline','Priority repair list','Full assessment report'],status:'standby'},
+];
+
+function renderAgentCards(){
+  document.getElementById('agent-cards-grid').innerHTML = AGENTS.map(a=>`
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-dot" style="background:${a.color};"></div>
+        <div class="agent-name">${a.name}</div>
+        <span class="agent-status-badge ${a.status==='active'?'agent-status-active':'agent-status-standby'}">${a.status==='active'?'● ACTIVE':'○ STANDBY'}</span>
+      </div>
+      <div class="agent-role">${a.role}</div>
+      <div class="agent-io"><span>Inputs: </span>${a.inputs.join(' · ')}</div>
+      <div class="agent-io" style="margin-top:2px;"><span>Outputs: </span>${a.outputs.join(' · ')}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════════════════════
+function showToast(msg,ms=3000){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display='block';
+  setTimeout(()=>{t.style.display='none';},ms);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════════
+window.addEventListener('load',()=>{
+  initCharts();
+  renderAlerts();
+  renderIncidents();
+  renderDrains();
+  renderZoneCards(ZONES);
+});
+</script>
+</body>
+</html>
